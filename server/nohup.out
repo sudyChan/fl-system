@@ -149,3 +149,67 @@ INFO:     127.0.0.1:43772 - "GET /api/tasks/demands HTTP/1.1" 200 OK
 INFO:     127.0.0.1:42870 - "GET /api/tasks/demands HTTP/1.1" 200 OK
 INFO:     127.0.0.1:45394 - "GET /api/tasks/demands HTTP/1.1" 200 OK
 INFO:     127.0.0.1:46916 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+[DB] PostgreSQL connected: 10.129.209.249:5433/computing_network
+INFO:     10.29.47.172:57309 - "GET /computing/task-management HTTP/1.1" 404 Not Found
+INFO:     10.29.47.172:57309 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:44050 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45394 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40352 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49786 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56968 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35868 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38674 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50236 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60230 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53042 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40210 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50328 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47516 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41884 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58252 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54856 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60510 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32896 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41046 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+[DB] PostgreSQL connected: 10.129.209.249:5433/computing_network
+INFO:     127.0.0.1:45984 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40970 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+[DB] PostgreSQL connected: 10.129.209.249:5433/computing_network
+INFO:     127.0.0.1:35300 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+[DB] PostgreSQL connected: 10.129.209.249:5433/computing_network
+INFO:     127.0.0.1:45126 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44408 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59992 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39684 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54450 - "GET /api/tasks/demands HTTP/1.1" 200 OK
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 10819
+
+Re-optimizing dependencies because vite config has changed
+
+  VITE v5.4.21  ready in 1049 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://10.129.209.249:5173/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 10819
+
+
+  VITE v5.4.21  ready in 379 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: http://10.129.209.249:5173/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 8816
+
+Port 5173 is in use, trying another one...
+
+  VITE v5.4.21  ready in 386 ms
+
+  ➜  Local:   http://localhost:5174/
+  ➜  Network: http://10.129.209.249:5174/
+[DB] PostgreSQL connected: 10.129.209.249:5433/computing_network
+INFO:     127.0.0.1:53128 - "GET /api/tasks/demands HTTP/1.1" 200 OK

@@ -169,7 +169,7 @@ cd fl-system
 ## 云服务器上项目部署自己的环境(云服务项目部署)
 ### 安装前端依赖
 conda activate cst #cst是自己的环境
-npm install -c conda-forge nodejs=20
+conda install -c conda-forge nodejs=20.*
 node -v # 确认node版本
 conda remove -n cst nodejs  # 移除nodejs依赖
 which node # 查看当前node的使用情况，指向conda环境的路径
@@ -177,7 +177,7 @@ cd /data/fl-system/cst/fl-system  # 进入项目前端目录
 npm install  # 安装前端依赖
 chmod +x node_modules/.bin/vite  # 若报错vite:Permission denied  给vite添加执行权限
 #若后端端口8003被占用，需要先关闭后端进程，修改端口，再启动前端开发服务器
-nohup npm run dev -- --host 0.0.0.0 --port 8003 2> front.out &  # 后台运行前端开发服务器,&为避免该程序的卡住页面， 2> front.out 为重定向错误输出到 front.out 文件即日志文件 
+nohup npm run dev -- --host 0.0.0.0 --port 10820 2> front.out &  # 后台运行前端开发服务器,&为避免该程序的卡住页面， 2> front.out 为重定向错误输出到 front.out 文件即日志文件 
 
 
 
@@ -207,12 +207,12 @@ ps aux | grep 8003  # 查看该端口的使用情况
 #2. server/app/core/config.py  # 修改数据库连接字符串
 #3. vite.config.ts  # 修改代理配置
 curl http://localhost:8003/health # 验证后端是否正常，若返回的是{"status": "ok","version": "0.1.0"}则正常
-nohup npm run dev -- --host 0.0.0.0 --port 8003 2> front.out &  # 后台运行前端开发服务器,&为避免该程序的卡住页面， 2> front.out 为重定向错误输出到 front.out 文件即日志文件
+# 后台运行前端开发服务器,&为避免该程序的卡住页面， 2> front.out 为重定向错误输出到 front.out 文件即日志文件
 
 cd server
 
 # 服务器上启动后端且不卡住该进程，并输出日志到 back.out 文件
-nohup uvicorn app.main:app --reload --host 0.0.0.0 --port 8003 2> back.out &
+nohup uvicorn app.main:app --reload --host 0.0.0.0 --port 8816 2> back.out &
 
 
 # 创建虚拟环境（推荐）

@@ -1,0 +1,9 @@
+nohup: 忽略输入并把输出追加到 'nohup.out'
+INFO:     Will watch for changes in these directories: ['/data/fl-system/cst/fl-system/server']
+INFO:     Uvicorn running on http://0.0.0.0:8816 (Press CTRL+C to quit)
+INFO:     Started reloader process [75616] using WatchFiles
+INFO:     Started server process [75656]
+INFO:     Waiting for application startup.
+2026-05-18 14:19:15.115 | INFO     | app.main:lifespan:14 - Starting FL System Backend v0.1.0
+2026-05-18 14:19:15.115 | INFO     | app.main:lifespan:17 - Database tables created
+INFO:     Application startup complete.

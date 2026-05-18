@@ -11,8 +11,12 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    host: '0.0.0.0',
+    port: 10819,
     open: true,
+    watch: {
+      ignored: ['**/venv/**', '**/data/**', '**/node_modules/**', '**/.git/**', '**/server/**'],
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8816',

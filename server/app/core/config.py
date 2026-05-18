@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # Server
     HOST: str = "0.0.0.0"
-    PORT: int = 8816
+    PORT: int = 10819
 
     # Database
     DATABASE_URL: str = "postgresql://cn_admin:slwl@10.129.209.249:5433/computing_network?sslmode=prefer"
@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     LLM_MODEL: str = "gpt-3.5-turbo"
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173"]
+    CORS_ORIGINS: list[str] = ["http://localhost:8019", "http://localhost:5173"]
 
     class Config:
         env_file = ".env"
