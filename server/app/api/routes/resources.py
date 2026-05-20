@@ -1,13 +1,78 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from typing import Optional
+from sqlalchemy.orm import Session
+from sqlalchemy import text, create_engine
 import random
 import time
+
+from app.core.database import get_db
+from app.core.config import settings
+from app.core.cache import cached
 
 router = APIRouter()
 
 
+def _get_computing_network_engine():
+    url = (
+        f"postgresql://{settings.DB_USER}:{settings.DB_PASSWORD}"
+        f"@{settings.DB_HOST}:{settings.DB_PORT}/{settings.DB_NAME}?sslmode=prefer"
+    )
+    return create_engine(url, connect_args={"connect_timeout": 5, "sslmode": "prefer"})
+
+
+def _query_db(sql: str, params: dict | None = None):
+    engine = _get_computing_network_engine()
+    with engine.connect() as conn:
+        result = conn.execute(text(sql), params or {})
+        return [dict(row._mapping) for row in result.fetchall()]
+
+
+# =========================================================
+# 算力节点列表（dim_compute_node + ts_node_metric 最新指标）
+# =========================================================
+@router.get("/resources/nodes")
+@cached(ttl=30, key_prefix="resources")
+async def get_nodes():
+    try:
+        rows = _query_db("""
+            SELECT
+                n.node_id,
+                n.node_name,
+                n.status,
+                COALESCE(m.cpu_usage_pct, 0)   AS cpu_percent,
+                COALESCE(m.memory_usage_pct, 0) AS mem_percent,
+                COALESCE(m.gpu_usage_pct, 0)    AS gpu_percent,
+                COALESCE(m.disk_usage_pct, 0)   AS disk_percent
+            FROM dim_compute_node n
+            LEFT JOIN LATERAL (
+                SELECT cpu_usage_pct, memory_usage_pct, gpu_usage_pct, disk_usage_pct
+                FROM ts_node_metric t
+                WHERE t.node_id = n.node_id
+                ORDER BY t.metric_time DESC
+                LIMIT 1
+            ) m ON true
+            ORDER BY n.node_id
+        """)
+        nodes = []
+        for r in rows:
+            nodes.append({
+                "node_name": r["node_name"],
+                "node_id": r["node_id"],
+                "status": r["status"],
+                "cpu_percent": round(float(r["cpu_percent"]), 1),
+                "mem_percent": round(float(r["mem_percent"]), 1),
+                "gpu_percent": round(float(r["gpu_percent"]), 1),
+                "disk_percent": round(float(r["disk_percent"]), 1),
+            })
+        online = sum(1 for n in nodes if n["status"] == "online")
+        return {"total": len(nodes), "online": online, "nodes": nodes}
+    except Exception as e:
+        print(f"[API] /resources/nodes query failed: {e}")
+        nodes = [_mock_node(str(i)) for i in range(1, 13)]
+        return {"total": len(nodes), "online": sum(1 for n in nodes if n["status"] == "online"), "nodes": nodes}
+
+
 def _mock_node(node_id: str):
-    """Generate mock resource data for a single node."""
     return {
         "node_id": node_id,
         "hostname": f"node-{node_id}",
@@ -23,30 +88,101 @@ def _mock_node(node_id: str):
     }
 
 
-@router.get("/resources/nodes")
-async def get_nodes():
-    """Get all computing nodes and their resource usage."""
-    nodes = [_mock_node(str(i)) for i in range(1, 13)]
-    return {
-        "total": len(nodes),
-        "online": sum(1 for n in nodes if n["status"] == "online"),
-        "nodes": nodes,
-    }
-
-
 @router.get("/resources/nodes/{node_id}")
+@cached(ttl=30, key_prefix="resources")
 async def get_node_detail(node_id: str):
-    """Get detailed information for a specific node."""
-    return _mock_node(node_id)
+    try:
+        rows = _query_db("""
+            SELECT
+                n.node_id,
+                n.node_name,
+                n.status,
+                n.cpu_cores,
+                n.memory_total_gb,
+                n.disk_total_gb,
+                n.gpu_type,
+                n.gpu_count,
+                n.health_score,
+                COALESCE(m.cpu_usage_pct, 0)   AS cpu_percent,
+                COALESCE(m.memory_usage_pct, 0) AS mem_percent,
+                COALESCE(m.gpu_usage_pct, 0)    AS gpu_percent,
+                COALESCE(m.disk_usage_pct, 0)   AS disk_percent,
+                COALESCE(m.network_in_mbps, 0)  AS network_in,
+                COALESCE(m.network_out_mbps, 0) AS network_out
+            FROM dim_compute_node n
+            LEFT JOIN LATERAL (
+                SELECT cpu_usage_pct, memory_usage_pct, gpu_usage_pct, disk_usage_pct,
+                       network_in_mbps, network_out_mbps
+                FROM ts_node_metric t
+                WHERE t.node_id = n.node_id
+                ORDER BY t.metric_time DESC
+                LIMIT 1
+            ) m ON true
+            WHERE n.node_id = :nid
+        """, {"nid": node_id})
+        if rows:
+            r = rows[0]
+            return {
+                "node_id": r["node_id"],
+                "hostname": r["node_name"],
+                "status": r["status"],
+                "cpu_cores": r["cpu_cores"],
+                "memory_total_gb": r["memory_total_gb"],
+                "disk_total_gb": r["disk_total_gb"],
+                "gpu_type": r["gpu_type"],
+                "gpu_count": r["gpu_count"],
+                "health_score": float(r["health_score"]) if r["health_score"] else None,
+                "cpu_usage": round(float(r["cpu_percent"]), 1),
+                "memory_usage": round(float(r["mem_percent"]), 1),
+                "disk_usage": round(float(r["disk_percent"]), 1),
+                "gpu_usage": round(float(r["gpu_percent"]), 1),
+                "network_in": round(float(r["network_in"]), 2),
+                "network_out": round(float(r["network_out"]), 2),
+                "updated_at": int(time.time()),
+            }
+        return _mock_node(node_id)
+    except Exception as e:
+        print(f"[API] /resources/nodes/{node_id} query failed: {e}")
+        return _mock_node(node_id)
 
 
 @router.get("/resources/nodes/{node_id}/history")
+@cached(ttl=60, key_prefix="resources")
 async def get_node_history(
     node_id: str,
     metric: str = "cpu_usage",
     period: str = "1h",
 ):
-    """Get historical metrics for a node."""
+    try:
+        interval = "1 hour" if period == "1h" else "2 hours"
+        col_map = {
+            "cpu_usage": "cpu_usage_pct",
+            "memory_usage": "memory_usage_pct",
+            "gpu_usage": "gpu_usage_pct",
+            "disk_usage": "disk_usage_pct",
+        }
+        col = col_map.get(metric, "cpu_usage_pct")
+        sql = f"""
+            SELECT metric_time, {col} AS value
+            FROM ts_node_metric
+            WHERE node_id = :nid
+              AND metric_time >= now() - interval '{interval}'
+            ORDER BY metric_time
+        """
+        rows = _query_db(sql, {"nid": node_id})
+        if rows:
+            return {
+                "node_id": node_id,
+                "metric": metric,
+                "period": period,
+                "data": [
+                    {"timestamp": int(r["metric_time"].timestamp()), "value": round(float(r["value"]), 1)}
+                    for r in rows
+                ],
+            }
+    except Exception as e:
+        print(f"[API] /resources/nodes/{node_id}/history query failed: {e}")
+
     points = 60 if period == "1h" else 120
     timestamps = [int(time.time()) - (points - i) * 60 for i in range(points)]
     values = [round(random.uniform(20, 90), 1) for _ in range(points)]
@@ -59,8 +195,25 @@ async def get_node_history(
 
 
 @router.get("/resources/topology")
+@cached(ttl=120, key_prefix="resources")
 async def get_topology():
-    """Get network topology data for visualization."""
+    try:
+        vertices = _query_db("SELECT vertex_id, label, v_type FROM dim_topology_vertex ORDER BY vertex_id")
+        edges = _query_db("SELECT source_id, target_id FROM dim_topology_edge ORDER BY edge_id")
+        if vertices and edges:
+            return {
+                "nodes": [
+                    {"id": v["vertex_id"], "label": v["label"], "type": v["v_type"]}
+                    for v in vertices
+                ],
+                "edges": [
+                    {"source": e["source_id"], "target": e["target_id"]}
+                    for e in edges
+                ],
+            }
+    except Exception as e:
+        print(f"[API] /resources/topology query failed: {e}")
+
     nodes = [
         {"id": "cloud", "label": "Cloud Center", "type": "cloud"},
         *[{"id": f"edge-{i}", "label": f"Edge Node {i}", "type": "edge"} for i in range(1, 5)],
@@ -74,8 +227,47 @@ async def get_topology():
 
 
 @router.get("/resources/load")
+@cached(ttl=30, key_prefix="resources")
 async def get_system_load():
-    """Get system load overview for monitoring dashboard."""
+    try:
+        rows = _query_db("""
+            SELECT
+                AVG(cpu_usage_pct)    AS total_cpu,
+                AVG(memory_usage_pct) AS total_memory,
+                AVG(gpu_usage_pct)    AS total_gpu,
+                AVG(disk_usage_pct)   AS total_disk
+            FROM (
+                SELECT DISTINCT ON (node_id)
+                    cpu_usage_pct, memory_usage_pct, gpu_usage_pct, disk_usage_pct
+                FROM ts_node_metric
+                ORDER BY node_id, metric_time DESC
+            ) sub
+        """)
+        if rows and rows[0]["total_cpu"] is not None:
+            r = rows[0]
+            node_loads = _query_db("""
+                SELECT node_id, cpu_usage_pct AS load
+                FROM (
+                    SELECT DISTINCT ON (node_id) node_id, cpu_usage_pct
+                    FROM ts_node_metric
+                    ORDER BY node_id, metric_time DESC
+                ) sub
+                ORDER BY node_id
+            """)
+            return {
+                "timestamp": int(time.time()),
+                "total_cpu": round(float(r["total_cpu"]), 1),
+                "total_memory": round(float(r["total_memory"]), 1),
+                "total_gpu": round(float(r["total_gpu"]), 1),
+                "total_disk": round(float(r["total_disk"]), 1),
+                "node_loads": [
+                    {"node_id": nl["node_id"], "load": round(float(nl["load"]), 1)}
+                    for nl in node_loads
+                ],
+            }
+    except Exception as e:
+        print(f"[API] /resources/load query failed: {e}")
+
     return {
         "timestamp": int(time.time()),
         "total_cpu": round(random.uniform(40, 75), 1),
@@ -94,128 +286,143 @@ async def get_system_load():
 # =========================
 
 @router.get("/resources/usage")
+@cached(ttl=60, key_prefix="resources")
 async def get_resource_usage():
-    """
-    获取资源占比数据
-    对应用途：
-    - 前端页面：算力中心能力视图中的资源占比饼图
-    - 文件位置：src/pages/ComputingSchedule/TaskManagement/index.tsx
+    try:
+        rows = _query_db("""
+            SELECT
+                AVG(cpu_usage_pct)     AS cpu,
+                AVG(gpu_usage_pct)     AS gpu,
+                AVG(disk_usage_pct)    AS disk,
+                AVG(network_in_mbps)   AS network
+            FROM (
+                SELECT DISTINCT ON (node_id)
+                    cpu_usage_pct, gpu_usage_pct, disk_usage_pct, network_in_mbps
+                FROM ts_node_metric
+                ORDER BY node_id, metric_time DESC
+            ) sub
+        """)
+        if rows and rows[0]["cpu"] is not None:
+            r = rows[0]
+            return [
+                {"name": "CPU", "value": round(float(r["cpu"]), 1)},
+                {"name": "GPU", "value": round(float(r["gpu"]), 1)},
+                {"name": "存储", "value": round(float(r["disk"]), 1)},
+                {"name": "网络", "value": round(float(r["network"]), 1)},
+            ]
+    except Exception as e:
+        print(f"[API] /resources/usage query failed: {e}")
 
-    返回格式说明：
-    [
-      { "name": "CPU", "value": 256 },
-      { "name": "GPU", "value": 64 }
-    ]
-    """
     return [
-        {"name": "CPU", "value": 256},
-        {"name": "GPU", "value": 64},
-        {"name": "存储", "value": 1024},
-        {"name": "网络", "value": 128},
+        {"name": "CPU", "value": round(random.uniform(40, 80), 1)},
+        {"name": "GPU", "value": round(random.uniform(30, 70), 1)},
+        {"name": "存储", "value": round(random.uniform(30, 60), 1)},
+        {"name": "网络", "value": round(random.uniform(20, 50), 1)},
     ]
 
 
 @router.get("/resources/trend")
+@cached(ttl=120, key_prefix="resources")
 async def get_resource_trend():
-    """
-    获取多维资源动态趋势数据
-    对应用途：
-    - 前端页面：多维资源动态管理折线图
-    - 文件位置：src/pages/ComputingSchedule/TaskManagement/index.tsx
+    try:
+        rows = _query_db("""
+            SELECT
+                metric_time,
+                avg_cpu_pct,
+                avg_memory_pct,
+                avg_gpu_pct
+            FROM ts_resource_trend_5m
+            ORDER BY metric_time
+        """)
+        if rows:
+            day_map: dict[str, dict] = {}
+            for r in rows:
+                mt = r["metric_time"]
+                day = mt.strftime("%Y-%m-%d")
+                time_label = mt.strftime("%H:%M")
+                if day not in day_map:
+                    day_map[day] = {"times": [], "cpu": [], "mem": [], "gpu": []}
+                day_map[day]["times"].append(time_label)
+                day_map[day]["cpu"].append(round(float(r["avg_cpu_pct"]), 1))
+                day_map[day]["mem"].append(round(float(r["avg_memory_pct"]), 1))
+                day_map[day]["gpu"].append(round(float(r["avg_gpu_pct"]), 1))
 
-    返回字段说明：
-    - x: 时间轴
-    - series: 多条资源利用率曲线
-    """
-    # return {
-    #     "x": ["10:00", "11:00", "12:00", "13:00", "14:00"],
-    #     "series": [
-    #         {"name": "CPU利用率", "data": [60, 72, 68, 75, 70], "areaStyle": True},
-    #         {"name": "内存利用率", "data": [50, 65, 60, 68, 66], "areaStyle": True},
-    #         {"name": "GPU利用率", "data": [35, 45, 40, 50, 48], "areaStyle": True},
-    #     ],
-    # }
-    time_points = ["2020-8-1", "2020-8-2", "2020-8-3", "2020-8-4", "2020-8-5"]
+            days = sorted(day_map.keys())
 
+            def avg(arr):
+                return round(sum(arr) / len(arr), 1) if arr else 0
+
+            daily_overview = {
+                "x": days,
+                "series": [
+                    {"name": "CPU 利用率", "data": [avg(day_map[d]["cpu"]) for d in days]},
+                    {"name": "内存利用率", "data": [avg(day_map[d]["mem"]) for d in days]},
+                    {"name": "GPU 利用率", "data": [avg(day_map[d]["gpu"]) for d in days]},
+                ],
+            }
+
+            daily_detail = {}
+            for d in days:
+                info = day_map[d]
+                daily_detail[d] = {
+                    "x": info["times"],
+                    "series": [
+                        {"name": "CPU 利用率", "data": info["cpu"]},
+                        {"name": "内存利用率", "data": info["mem"]},
+                        {"name": "GPU 利用率", "data": info["gpu"]},
+                    ],
+                }
+
+            return {"dailyOverview": daily_overview, "dailyDetail": daily_detail}
+    except Exception as e:
+        print(f"[API] /resources/trend query failed: {e}")
+
+    time_points = ["10:00", "11:00", "12:00", "13:00", "14:00"]
     return {
-        "x": time_points,
-        "series": [
-            {
-                "name": "CPU使用率",
-                "data": [round(random.uniform(45, 85), 1) for _ in time_points],
-            },
-            {
-                "name": "内存使用率",
-                "data": [round(random.uniform(35, 75), 1) for _ in time_points],
-            },
-            {
-                "name": "GPU使用率",
-                "data": [round(random.uniform(20, 65), 1) for _ in time_points],
-            },
-        ],
+        "dailyOverview": {
+            "x": ["2026-05-14"],
+            "series": [
+                {"name": "CPU 利用率", "data": [round(random.uniform(45, 85), 1)]},
+                {"name": "内存利用率", "data": [round(random.uniform(35, 75), 1)]},
+                {"name": "GPU 利用率", "data": [round(random.uniform(20, 65), 1)]},
+            ],
+        },
+        "dailyDetail": {
+            "2026-05-14": {
+                "x": time_points,
+                "series": [
+                    {"name": "CPU 利用率", "data": [round(random.uniform(45, 85), 1) for _ in time_points]},
+                    {"name": "内存利用率", "data": [round(random.uniform(35, 75), 1) for _ in time_points]},
+                    {"name": "GPU 利用率", "data": [round(random.uniform(20, 65), 1) for _ in time_points]},
+                ],
+            }
+        },
     }
 
-
-# @router.get("/resources/map")
-# async def get_map_data():
-#     """
-#     获取全国算力节点地图散点数据
-#     对应用途：
-#     - 前端页面：算力中心能力视图中的全国节点分布图
-#     - 文件位置：src/pages/ComputingSchedule/TaskManagement/index.tsx
-#
-#     数据格式说明：
-#     [经度, 纬度, 算力值]
-#     """
-#     return [
-#         [116.4, 39.9, 200],   # 北京
-#         [121.5, 31.2, 300],   # 上海
-#         [113.2, 23.1, 180],   # 广州
-#         [104.0, 30.6, 150],   # 成都
-#         [114.3, 30.6, 220],   # 武汉
-#         [108.9, 34.3, 170],   # 西安
-#     ]
 
 # =========================================================
 # TaskManagement 页面专用：全国算力节点分布
 # =========================================================
 @router.get("/resources/map")
+@cached(ttl=300, key_prefix="resources")
 async def get_map_nodes():
-    """
-    获取全国算力节点分布数据
-
-    返回字段说明：
-    - name: 节点名称（地图上展示）
-    - longitude: 经度
-    - latitude: 纬度
-    - capacity: 算力值（用于散点大小）
-    - level: 节点等级
-    """
-    return [
-        {"name": "拉萨算力中心", "longitude": 91.1322, "latitude": 29.6604, "capacity": 120, "level": "边缘节点"},
-        {"name": "长沙算力中心", "longitude": 112.9398, "latitude": 28.2282, "capacity": 150, "level": "边缘节点"},
-        {"name": "西宁算力中心", "longitude": 101.7783, "latitude": 36.6167, "capacity": 100, "level": "边缘节点"},
-        {"name": "昆明算力中心", "longitude": 102.7123, "latitude": 25.0406, "capacity": 180, "level": "边缘节点"},
-        {"name": "南宁算力中心", "longitude": 108.3667, "latitude": 22.8167, "capacity": 200, "level": "边缘节点"},
-        {"name": "海口算力中心", "longitude": 110.3500, "latitude": 20.0167, "capacity": 90, "level": "区域级"},
-        {"name": "银川算力中心", "longitude": 106.2667, "latitude": 38.4667, "capacity": 130, "level": "区域级"},
-        {"name": "兰州算力中心", "longitude": 103.8333, "latitude": 36.0667, "capacity": 160, "level": "区域级"},
-        {"name": "乌鲁木齐算力中心", "longitude": 87.6167, "latitude": 43.8167, "capacity": 80, "level": "区域级"},
-        {"name": "呼和浩特边缘算力中心", "longitude": 111.7519, "latitude": 40.8515, "capacity": 110, "level": "区域级"},
-        {"name": "哈尔滨边缘算力中心", "longitude": 126.6333, "latitude": 45.7500, "capacity": 140, "level": "区域级"},
-        {"name": "天津西青算力中心", "longitude": 117.0833, "latitude": 39.1333, "capacity": 220, "level": "区域级"},
-        {"name": "石家庄算力中心", "longitude": 114.5167, "latitude": 38.0333, "capacity": 170, "level": "区域级"},
-        {"name": "太原算力中心", "longitude": 112.5500, "latitude": 37.8667, "capacity": 130, "level": "区域级"},
-        {"name": "沈阳算力中心", "longitude": 123.4315, "latitude": 41.8057, "capacity": 190, "level": "区域级"},
-        {"name": "长春算力中心", "longitude": 125.3167, "latitude": 43.8833, "capacity": 160, "level": "区域级"},
-        {"name": "上海算力中心", "longitude": 121.4737, "latitude": 31.2304, "capacity": 300, "level": "区域级"},
-        {"name": "杭州算力中心", "longitude": 120.1551, "latitude": 30.2741, "capacity": 250, "level": "区域级"},
-        {"name": "合肥算力中心", "longitude": 117.2833, "latitude": 31.8667, "capacity": 210, "level": "边缘节点"},
-        {"name": "南昌算力中心", "longitude": 115.8917, "latitude": 28.6767, "capacity": 180, "level": "边缘节点"},
-        {"name": "济南算力中心", "longitude": 117.0000, "latitude": 36.6667, "capacity": 230, "level": "边缘节点"},
-        {"name": "郑州算力中心", "longitude": 113.6653, "latitude": 34.7578, "capacity": 240, "level": "边缘节点"},
-        {"name": "广州算力中心", "longitude": 113.2644, "latitude": 23.1291, "capacity": 350, "level": "边缘节点"},
-        {"name": "深圳算力中心", "longitude": 114.0579, "latitude": 22.5431, "capacity": 400, "level": "边缘节点"},
-        {"name": "贵阳算力中心", "longitude": 106.7167, "latitude": 26.5833, "capacity": 200, "level": "边缘节点"},
-        {"name": "西安算力中心", "longitude": 108.9453, "latitude": 34.3417, "capacity": 280, "level": "边缘节点"}
-    ]
+    try:
+        rows = _query_db(
+            "SELECT name, longitude, latitude, compute_power, center_level "
+            "FROM dim_supercomputing_center "
+            "WHERE is_active = true "
+            "ORDER BY compute_power DESC"
+        )
+        return [
+            {
+                "name": r["name"],
+                "longitude": r["longitude"],
+                "latitude": r["latitude"],
+                "capacity": r["compute_power"],
+                "level": r["center_level"] or "区域级",
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        print(f"[API] /resources/map query failed: {e}")
+        return []

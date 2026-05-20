@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # Server
     HOST: str = "0.0.0.0"
-    PORT: int = 10819
+    PORT: int = 10821
 
     # Database
     DATABASE_URL: str = "postgresql://cn_admin:slwl@10.129.209.249:5433/computing_network?sslmode=prefer"
@@ -29,6 +29,10 @@ class Settings(BaseSettings):
 
     # Redis (optional, for caching & Celery)
     REDIS_URL: Optional[str] = "redis://localhost:6379/0"
+
+    # Cache
+    CACHE_ENABLED: bool = True
+    CACHE_DEFAULT_TTL: int = 60
 
     # JWT Auth
     SECRET_KEY: str = "your-secret-key-change-in-production"

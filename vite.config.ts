@@ -12,14 +12,14 @@ export default defineConfig({
   },
   server: {
     host: '0.0.0.0',
-    port: 10819,
+    port: 10821,
     open: true,
     watch: {
       ignored: ['**/venv/**', '**/data/**', '**/node_modules/**', '**/.git/**', '**/server/**'],
     },
     proxy: {
       '/api': {
-        target: 'http://localhost:8816',
+        target: 'http://localhost:8816', //后端服务地址
         changeOrigin: true,
       },
     },

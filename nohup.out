@@ -88,3 +88,62 @@ Port 10820 is in use, trying another one...
 
   ➜  Local:   http://localhost:10821/
   ➜  Network: use --host to expose
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10820
+
+
+  VITE v5.4.21  ready in 276 ms
+
+  ➜  Local:   http://localhost:10820/
+  ➜  Network: http://10.129.209.249:10820/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10820
+
+Port 10820 is in use, trying another one...
+
+  VITE v5.4.21  ready in 308 ms
+
+  ➜  Local:   http://localhost:10821/
+  ➜  Network: http://10.129.209.249:10821/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10820
+
+Port 10820 is in use, trying another one...
+
+  VITE v5.4.21  ready in 293 ms
+
+  ➜  Local:   http://localhost:10821/
+  ➜  Network: http://10.129.209.249:10821/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10820
+
+Port 10820 is in use, trying another one...
+
+  VITE v5.4.21  ready in 290 ms
+
+  ➜  Local:   http://localhost:10821/
+  ➜  Network: http://10.129.209.249:10821/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10821
+
+Port 10821 is in use, trying another one...
+
+  VITE v5.4.21  ready in 1811 ms
+
+  ➜  Local:   http://localhost:10822/
+  ➜  Network: http://10.129.209.249:10822/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10822
+
+Port 10822 is in use, trying another one...
+
+  VITE v5.4.21  ready in 286 ms
+
+  ➜  Local:   http://localhost:10823/
+  ➜  Network: http://10.129.209.249:10823/

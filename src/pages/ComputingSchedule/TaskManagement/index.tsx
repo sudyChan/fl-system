@@ -58,21 +58,25 @@ const TaskManagement: React.FC = () => {
       title: 'CPU(核)',
       dataIndex: 'cpu',
       key: 'cpu',
+      render: (v: number) => v.toFixed(2),
     },
     {
       title: '内存(GB)',
       dataIndex: 'memory',
       key: 'memory',
+      render: (v: number) => v.toFixed(2),
     },
     {
       title: 'GPU(张)',
       dataIndex: 'gpu',
       key: 'gpu',
+      render: (v: number) => v.toFixed(2),
     },
     {
       title: '存储(GB)',
       dataIndex: 'storage',
       key: 'storage',
+      render: (v: number) => v.toFixed(2),
     },
     {
       title: '优先级',
@@ -113,21 +117,25 @@ const TaskManagement: React.FC = () => {
       title: 'CPU(核)',
       dataIndex: 'cpu',
       key: 'cpu',
+      render: (v: number) => v.toFixed(2),
     },
     {
       title: '内存(GB)',
       dataIndex: 'memory',
       key: 'memory',
+      render: (v: number) => v.toFixed(2),
     },
     {
       title: 'GPU(张)',
       dataIndex: 'gpu',
       key: 'gpu',
+      render: (v: number) => v.toFixed(2),
     },
     {
       title: '存储(GB)',
       dataIndex: 'storage',
       key: 'storage',
+      render: (v: number) => v.toFixed(2),
     },
     {
       title: '状态',
@@ -780,7 +788,7 @@ const TaskManagement: React.FC = () => {
                         overflowCount={9999}
                       />
                       <span style={{ color: '#999', fontSize: 12, marginLeft: 8 }}>
-                        CPU {group.totalCpu} 核 | 内存 {group.totalMemory} GB | GPU {group.totalGpu} 张 | 存储 {group.totalStorage} GB
+                        CPU {group.totalCpu.toFixed(2)} 核 | 内存 {group.totalMemory.toFixed(2)} GB | GPU {group.totalGpu.toFixed(2)} 张 | 存储 {group.totalStorage.toFixed(2)} GB
                       </span>
                     </div>
                   ),
@@ -789,7 +797,7 @@ const TaskManagement: React.FC = () => {
                       rowKey="id"
                       columns={layeredColumns}
                       dataSource={group.items}
-                      pagination={false}
+                      pagination={{ pageSize: 5, size: 'small', showSizeChanger: false, showTotal: (total) => `共 ${total} 条` }}
                       size="small"
                       rowClassName={() => ''}
                       style={{
@@ -803,7 +811,6 @@ const TaskManagement: React.FC = () => {
                     borderColor: group.borderColor,
                     backgroundColor: group.bgColor,
                     borderRadius: 8,
-                    overflow: 'hidden',
                   },
                 }))}
               />
@@ -869,7 +876,6 @@ const TaskManagement: React.FC = () => {
                       borderColor: group.borderColor,
                       backgroundColor: group.bgColor,
                       borderRadius: 8,
-                      overflow: 'hidden',
                     },
                   };
                 })}

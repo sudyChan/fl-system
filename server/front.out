@@ -1,0 +1,8 @@
+nohup: 忽略输入并把输出追加到 'nohup.out'
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+error when starting dev server:
+TypeError: crypto$2.getRandomValues is not a function
+    at resolveConfig (file:///data/fl-system/cst/fl-system/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:66671:16)
+    at processTicksAndRejections (node:internal/process/task_queues:96:5)
+    at async _createServer (file:///data/fl-system/cst/fl-system/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:63015:18)
+    at async CAC.<anonymous> (file:///data/fl-system/cst/fl-system/node_modules/vite/dist/node/cli.js:736:20)

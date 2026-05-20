@@ -34,3 +34,8 @@ html, body, #root {
 .stat-card {
   transition: all 0.3s ease;
 }
+
+/* Fix: Collapse panel clips Table pagination */
+.ant-collapse-content-box {
+  overflow: visible !important;
+}

@@ -58,42 +58,32 @@ export const getTaskStats = () => api.get('/tasks/stats');
 
 /** 资源   */
 /**
- * 获取节点资源详情列表
+ * 获取节点资源详情列表（含最新 CPU/GPU/内存/磁盘使用率）
  * 接口：GET /api/resources/nodes
- * 用途：页面中的“节点资源详情”表格
+ * 数据源：PostgreSQL dim_compute_node + ts_node_metric → Redis 缓存
  */
 export const getNodes = () => api.get('/resources/nodes');
 
 /**
- * 获取资源占比数据
+ * 获取资源占比数据（饼图）
  * 接口：GET /api/resources/usage
- * 用途：页面中的“算力中心能力视图”饼图
+ * 数据源：PostgreSQL ts_node_metric 聚合 → Redis 缓存
  */
-export const getResourceUsage = () =>api.get('/resources/usage');
+export const getResourceUsage = () => api.get('/resources/usage');
 
 /**
- * 获取资源动态趋势数据
+ * 获取资源动态趋势数据（折线图，含 dailyOverview + dailyDetail）
  * 接口：GET /api/resources/trend
- * 用途：页面中的“多维资源动态管理”折线图
+ * 数据源：PostgreSQL ts_resource_trend_5m → Redis 缓存
  */
-export const getResourceTrend = () => api.get('resources/trend');
-
+export const getResourceTrend = () => api.get('/resources/trend');
 
 /**
  * 获取全国算力节点地图分布数据
  * 接口：GET /api/resources/map
- * 用途：页面中的“算力中心能力视图”地图散点展示
+ * 数据源：PostgreSQL dim_supercomputing_center → Redis 缓存
  */
-// export const getMapData=()=>api.get('/resources/map');
-
-/**
- * 获取全国算力节点分布数据
- */
-export async function getMapData() {
-  const res = await api.get('resources/map');
-  console.log('[API] /resources/map =>', res);
-  return res;
-}
+export const getMapData = () => api.get('/resources/map');
 // export const createTask = (data: any) => api.post('/tasks', data);
 //
 

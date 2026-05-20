@@ -173,6 +173,8 @@ conda install -c conda-forge nodejs=20.*
 node -v # 确认node版本
 conda remove -n cst nodejs  # 移除nodejs依赖
 which node # 查看当前node的使用情况，指向conda环境的路径
+source ~/.nvm/nvm.sh #加载nvm
+nvm use 20# 使用node20版本
 cd /data/fl-system/cst/fl-system  # 进入项目前端目录
 npm install  # 安装前端依赖
 chmod +x node_modules/.bin/vite  # 若报错vite:Permission denied  给vite添加执行权限
@@ -235,6 +237,19 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 **API 文档**（自动生成）：
 - Swagger UI: `http://localhost:8000/docs`
 - ReDoc: `http://localhost:8000/redoc`
+
+
+### git的使用
+- **首次配置GitHub**
+  - git config --global user.name "你的GitHub用户名"
+  - git config --global user.email "你的GitHub邮箱"
+- **使用终端命令行提交**
+  - git status  # 查看当前状态，确认是否有未提交的文件
+  - git add .  # 添加所有文件到暂存区
+  - git commit -m "提交信息"  # 提交到本地仓库
+  - git push  # 推送到远程仓库 (git push origin main 推送到main分支)
+
+
 
 ### 前后端联调
 

@@ -3,10 +3,13 @@ from typing import Optional
 import random
 import time
 
+from app.core.cache import cached
+
 router = APIRouter()
 
 
 @router.get("/fraud/overview")
+@cached(ttl=30, key_prefix="fraud")
 async def get_fraud_overview():
     """Get fraud detection overview statistics."""
     return {
@@ -20,6 +23,7 @@ async def get_fraud_overview():
 
 
 @router.get("/fraud/users")
+@cached(ttl=30, key_prefix="fraud")
 async def get_fraud_users(
     page: int = 1,
     page_size: int = 20,
@@ -44,6 +48,7 @@ async def get_fraud_users(
 
 
 @router.get("/fraud/statistics/daily")
+@cached(ttl=120, key_prefix="fraud")
 async def get_fraud_daily_stats(days: int = 7):
     """Get daily fraud statistics for trend analysis."""
     return {
@@ -61,6 +66,7 @@ async def get_fraud_daily_stats(days: int = 7):
 
 
 @router.get("/fraud/statistics/city")
+@cached(ttl=120, key_prefix="fraud")
 async def get_fraud_city_stats():
     """Get fraud statistics by city."""
     cities = ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu",
@@ -80,6 +86,7 @@ async def get_fraud_city_stats():
 
 
 @router.get("/fraud/text-mining")
+@cached(ttl=120, key_prefix="fraud")
 async def get_text_mining_data():
     """Get text mining analysis results for fraud SMS/messages."""
     domains = ["finance", "telecom", "government", "e-commerce", "social"]
@@ -99,6 +106,7 @@ async def get_text_mining_data():
 
 
 @router.get("/fraud/communication-mining")
+@cached(ttl=120, key_prefix="fraud")
 async def get_communication_mining_data():
     """Get communication data mining results."""
     return {
@@ -118,6 +126,7 @@ async def get_communication_mining_data():
 
 
 @router.get("/fraud/behavior/{user_id}")
+@cached(ttl=60, key_prefix="fraud")
 async def get_user_behavior(user_id: str):
     """Get behavior tracking data for a specific user."""
     return {
