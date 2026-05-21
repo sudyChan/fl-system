@@ -27,43 +27,34 @@ def _query_db(sql: str, params: dict | None = None):
         return [dict(row._mapping) for row in result.fetchall()]
 
 
-# =========================================================
-# 算力节点列表（dim_compute_node + ts_node_metric 最新指标）
-# =========================================================
 @router.get("/resources/nodes")
 @cached(ttl=30, key_prefix="resources")
 async def get_nodes():
     try:
         rows = _query_db("""
             SELECT
-                n.node_id,
-                n.node_name,
-                n.status,
-                COALESCE(m.cpu_usage_pct, 0)   AS cpu_percent,
-                COALESCE(m.memory_usage_pct, 0) AS mem_percent,
-                COALESCE(m.gpu_usage_pct, 0)    AS gpu_percent,
-                COALESCE(m.disk_usage_pct, 0)   AS disk_percent
-            FROM dim_compute_node n
-            LEFT JOIN LATERAL (
-                SELECT cpu_usage_pct, memory_usage_pct, gpu_usage_pct, disk_usage_pct
-                FROM ts_node_metric t
-                WHERE t.node_id = n.node_id
-                ORDER BY t.metric_time DESC
-                LIMIT 1
-            ) m ON true
-            ORDER BY n.node_id
+                node_id,
+                node_name,
+                COALESCE(display_status, status, 'offline') AS status,
+                ROUND(cpu_percent::numeric, 1)  AS cpu_percent,
+                ROUND(mem_percent::numeric, 1)  AS mem_percent,
+                ROUND(gpu_percent::numeric, 1)  AS gpu_percent,
+                ROUND(disk_percent::numeric, 1) AS disk_percent
+            FROM vw_node_runtime_snapshot
+            ORDER BY node_id
         """)
-        nodes = []
-        for r in rows:
-            nodes.append({
+        nodes = [
+            {
                 "node_name": r["node_name"],
                 "node_id": r["node_id"],
                 "status": r["status"],
-                "cpu_percent": round(float(r["cpu_percent"]), 1),
-                "mem_percent": round(float(r["mem_percent"]), 1),
-                "gpu_percent": round(float(r["gpu_percent"]), 1),
-                "disk_percent": round(float(r["disk_percent"]), 1),
-            })
+                "cpu_percent": float(r["cpu_percent"]),
+                "mem_percent": float(r["mem_percent"]),
+                "gpu_percent": float(r["gpu_percent"]),
+                "disk_percent": float(r["disk_percent"]),
+            }
+            for r in rows
+        ]
         online = sum(1 for n in nodes if n["status"] == "online")
         return {"total": len(nodes), "online": online, "nodes": nodes}
     except Exception as e:
@@ -73,18 +64,15 @@ async def get_nodes():
 
 
 def _mock_node(node_id: str):
+    status = random.choice(["online", "online", "online", "offline", "warning"])
     return {
+        "node_name": f"node-{node_id}",
         "node_id": node_id,
-        "hostname": f"node-{node_id}",
-        "status": random.choice(["online", "online", "online", "offline", "warning"]),
-        "cpu_usage": round(random.uniform(10, 95), 1),
-        "memory_usage": round(random.uniform(20, 90), 1),
-        "disk_usage": round(random.uniform(30, 85), 1),
-        "network_in": round(random.uniform(50, 500), 2),
-        "network_out": round(random.uniform(30, 300), 2),
-        "gpu_usage": round(random.uniform(0, 100), 1),
-        "gpu_memory": round(random.uniform(0, 100), 1),
-        "updated_at": int(time.time()),
+        "status": status,
+        "cpu_percent": round(random.uniform(10, 95), 1),
+        "mem_percent": round(random.uniform(20, 90), 1),
+        "gpu_percent": round(random.uniform(0, 100), 1),
+        "disk_percent": round(random.uniform(30, 85), 1),
     }
 
 
@@ -94,31 +82,20 @@ async def get_node_detail(node_id: str):
     try:
         rows = _query_db("""
             SELECT
-                n.node_id,
-                n.node_name,
-                n.status,
-                n.cpu_cores,
-                n.memory_total_gb,
-                n.disk_total_gb,
-                n.gpu_type,
-                n.gpu_count,
-                n.health_score,
-                COALESCE(m.cpu_usage_pct, 0)   AS cpu_percent,
-                COALESCE(m.memory_usage_pct, 0) AS mem_percent,
-                COALESCE(m.gpu_usage_pct, 0)    AS gpu_percent,
-                COALESCE(m.disk_usage_pct, 0)   AS disk_percent,
-                COALESCE(m.network_in_mbps, 0)  AS network_in,
-                COALESCE(m.network_out_mbps, 0) AS network_out
-            FROM dim_compute_node n
-            LEFT JOIN LATERAL (
-                SELECT cpu_usage_pct, memory_usage_pct, gpu_usage_pct, disk_usage_pct,
-                       network_in_mbps, network_out_mbps
-                FROM ts_node_metric t
-                WHERE t.node_id = n.node_id
-                ORDER BY t.metric_time DESC
-                LIMIT 1
-            ) m ON true
-            WHERE n.node_id = :nid
+                node_id,
+                node_name,
+                COALESCE(display_status, status, 'offline') AS status,
+                location,
+                ROUND(cpu_percent::numeric, 1)  AS cpu_percent,
+                ROUND(mem_percent::numeric, 1)  AS mem_percent,
+                ROUND(gpu_percent::numeric, 1)  AS gpu_percent,
+                ROUND(disk_percent::numeric, 1) AS disk_percent,
+                running_tasks,
+                health_score,
+                last_heartbeat,
+                latest_metric_time
+            FROM vw_node_runtime_snapshot
+            WHERE node_id = :nid
         """, {"nid": node_id})
         if rows:
             r = rows[0]
@@ -126,18 +103,14 @@ async def get_node_detail(node_id: str):
                 "node_id": r["node_id"],
                 "hostname": r["node_name"],
                 "status": r["status"],
-                "cpu_cores": r["cpu_cores"],
-                "memory_total_gb": r["memory_total_gb"],
-                "disk_total_gb": r["disk_total_gb"],
-                "gpu_type": r["gpu_type"],
-                "gpu_count": r["gpu_count"],
+                "location": r["location"],
+                "cpu_usage": float(r["cpu_percent"]),
+                "memory_usage": float(r["mem_percent"]),
+                "disk_usage": float(r["disk_percent"]),
+                "gpu_usage": float(r["gpu_percent"]),
+                "running_tasks": int(r["running_tasks"]) if r["running_tasks"] else 0,
                 "health_score": float(r["health_score"]) if r["health_score"] else None,
-                "cpu_usage": round(float(r["cpu_percent"]), 1),
-                "memory_usage": round(float(r["mem_percent"]), 1),
-                "disk_usage": round(float(r["disk_percent"]), 1),
-                "gpu_usage": round(float(r["gpu_percent"]), 1),
-                "network_in": round(float(r["network_in"]), 2),
-                "network_out": round(float(r["network_out"]), 2),
+                "last_heartbeat": r["last_heartbeat"].isoformat() if r["last_heartbeat"] else None,
                 "updated_at": int(time.time()),
             }
         return _mock_node(node_id)

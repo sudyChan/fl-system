@@ -147,3 +147,32 @@ Port 10822 is in use, trying another one...
 
   ➜  Local:   http://localhost:10823/
   ➜  Network: http://10.129.209.249:10823/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10822
+
+
+  VITE v5.4.21  ready in 357 ms
+
+  ➜  Local:   http://localhost:10822/
+  ➜  Network: http://10.129.209.249:10822/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10823
+
+
+  VITE v5.4.21  ready in 300 ms
+
+  ➜  Local:   http://localhost:10823/
+  ➜  Network: http://10.129.209.249:10823/
+
+> fl-system@1.0.0 dev
+> vite --host 0.0.0.0 --port 10823
+
+
+  VITE v5.4.21  ready in 364 ms
+
+  ➜  Local:   http://localhost:10823/
+  ➜  Network: http://10.129.209.249:10823/
+  ➜  Network: http://172.19.0.1:10823/
+  ➜  Network: http://172.18.0.1:10823/
