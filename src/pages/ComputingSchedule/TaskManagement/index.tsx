@@ -28,7 +28,7 @@ import { DemandItem, NodeItem ,MapNodeItem, PriorityGroup, NodeStatusGroup, Reso
  * 6. 节点分布（当前使用安全版散点图替代地图）
  */
 const TaskManagement: React.FC = () => {
-  const { loading, demands, nodes, stats, usage, trend, mapData, priorityGroups, nodeStatusGroups, alerts } =
+  const { loading, demands, nodes, stats, usage, trend, mapData, priorityGroups, nodeStatusGroups, alerts, predictDates, predictTrend, predictLoading, fetchPredictTrend } =
     useTaskManagementData();
   /**
    * 当前选中的地图节点
@@ -400,26 +400,111 @@ const TaskManagement: React.FC = () => {
     };
   }, [usage]);
 
-  const availableDates = useMemo(() => {
-    return Array.from(trend.dailyDetailMap.keys()).sort();
-  }, [trend]);
+  const [predictSelectedDate, setPredictSelectedDate] = useState<string | null>(null);
 
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const predictActiveDate = useMemo(() => {
+    if (predictSelectedDate) return predictSelectedDate;
+    // 默认使用今天
+    const today = new Date().toISOString().slice(0, 10);
+    if (predictDates.includes(today)) return today;
+    return predictDates.length > 0 ? predictDates[predictDates.length - 1] : null;
+  }, [predictSelectedDate, predictDates]);
 
-  const activeDate = useMemo(() => {
-    if (selectedDate && trend.dailyDetailMap.has(selectedDate)) return selectedDate;
-    return availableDates.length > 0 ? availableDates[availableDates.length - 1] : null;
-  }, [selectedDate, trend, availableDates]);
-
-  const currentTrend = useMemo(() => {
-    if (activeDate && trend.dailyDetailMap.has(activeDate)) {
-      return trend.dailyDetailMap.get(activeDate)!;
+  const predictTrendOption = useMemo(() => {
+    if (!predictTrend || !predictTrend.x?.length) {
+      return {
+        backgroundColor: 'transparent',
+        tooltip: { trigger: 'axis' },
+        legend: { top: 8, right: 10, textStyle: { color: '#000', fontSize: 12 } },
+        grid: { top: 50, left: 55, right: 20, bottom: 40 },
+        xAxis: { type: 'category', data: [], boundaryGap: false },
+        yAxis: { type: 'value', name: '%', min: 0, max: 100 },
+        series: [],
+      };
     }
-    return { x: [], series: [] };
-  }, [activeDate, trend]);
 
-  const trendOption = useMemo(() => {
-    const data = currentTrend;
+    const colors = ['#5470c6', '#91cc75', '#fac858'];
+    const currentTimeIndex = predictTrend.currentTimeIndex ?? -1;
+    const isToday = currentTimeIndex >= 0;
+
+    // 当前时间标记线
+    const markLineData = isToday && currentTimeIndex < predictTrend.x.length
+      ? [{
+          xAxis: predictTrend.x[currentTimeIndex],
+          label: { formatter: '当前', color: '#ff4d4f', fontSize: 11, fontWeight: 'bold' },
+          lineStyle: { color: '#ff4d4f', width: 2, type: 'solid' },
+        }]
+      : [];
+
+    // 构建series：当天时，每个指标拆分为实线段（当前及之前）和虚线段（之后）
+    const allSeries: any[] = [];
+    const legendData: string[] = [];
+
+    predictTrend.series.forEach((item, idx) => {
+      const color = colors[idx] || '#5470c6';
+      const fullData = item.data;
+
+      if (isToday && currentTimeIndex < fullData.length - 1) {
+        // 当天：拆分为实线 + 虚线
+        const solidName = item.name;
+        const dashedName = `${item.name}（预测）`;
+
+        // 实线段：0 ~ currentTimeIndex，包含当前时间点
+        const solidData = fullData.map((v, i) => i <= currentTimeIndex ? v : null as any);
+        // 虚线段：currentTimeIndex ~ 末尾，与实线重叠一个点保证连续
+        const dashedData = fullData.map((v, i) => i >= currentTimeIndex ? v : null as any);
+
+        allSeries.push({
+          name: solidName,
+          type: 'line',
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 5,
+          showSymbol: true,
+          connectNulls: false,
+          lineStyle: { width: 2, color, type: 'solid' },
+          itemStyle: { color },
+          areaStyle: { opacity: 0.08 },
+          emphasis: { focus: 'series' },
+          data: solidData,
+          markLine: idx === 0 ? { silent: true, symbol: 'none', data: markLineData } : undefined,
+        });
+
+        allSeries.push({
+          name: dashedName,
+          type: 'line',
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 4,
+          showSymbol: true,
+          connectNulls: false,
+          lineStyle: { width: 2, color, type: 'dashed' },
+          itemStyle: { color },
+          emphasis: { focus: 'series' },
+          data: dashedData,
+        });
+
+        legendData.push(solidName);
+        legendData.push(dashedName);
+      } else {
+        // 非当天：全部实线
+        allSeries.push({
+          name: item.name,
+          type: 'line',
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 5,
+          showSymbol: true,
+          lineStyle: { width: 2, color, type: 'solid' },
+          itemStyle: { color },
+          areaStyle: { opacity: 0.08 },
+          emphasis: { focus: 'series' },
+          data: fullData,
+        });
+        legendData.push(item.name);
+      }
+    });
+
     return {
       backgroundColor: 'transparent',
       tooltip: {
@@ -428,6 +513,28 @@ const TaskManagement: React.FC = () => {
         borderColor: '#2f7bff',
         borderWidth: 1,
         textStyle: { color: '#fff' },
+        formatter: (params: any[]) => {
+          if (!params || !params.length) return '';
+          const time = params[0].axisValue;
+          let html = `<div style="font-weight:600;margin-bottom:4px">${time}</div>`;
+          // 去重：同一指标实线和虚线可能同时有值，优先取实线
+          const seen = new Map<string, any>();
+          params.forEach((p: any) => {
+            const baseName = p.seriesName.replace('（预测）', '');
+            if (p.value != null) {
+              if (!seen.has(baseName) || !p.seriesName.includes('预测')) {
+                seen.set(baseName, p);
+              }
+            }
+          });
+          seen.forEach((p: any) => {
+            html += `<div style="display:flex;align-items:center;gap:6px">
+              <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${p.color}"></span>
+              <span>${p.seriesName}：${p.value}%</span>
+            </div>`;
+          });
+          return html;
+        },
       },
       legend: {
         top: 8,
@@ -435,13 +542,13 @@ const TaskManagement: React.FC = () => {
         textStyle: { color: '#000', fontSize: 12 },
         itemWidth: 14,
         itemHeight: 8,
-        data: data?.series?.map((item: any) => item.name) || [],
+        data: legendData,
       },
       grid: { top: 50, left: 55, right: 20, bottom: 40 },
       xAxis: {
         type: 'category',
         boundaryGap: false,
-        data: data?.x || [],
+        data: predictTrend.x,
         axisLine: { lineStyle: { color: 'rgba(120,180,255,0.35)' } },
         axisLabel: {
           color: '#000',
@@ -461,25 +568,9 @@ const TaskManagement: React.FC = () => {
           lineStyle: { color: 'rgba(120,180,255,0.12)', type: 'dashed' },
         },
       },
-      series:
-        data?.series?.map((item: any, idx: number) => {
-          const colors = ['#5470c6', '#91cc75', '#fac858'];
-          return {
-            name: item.name,
-            type: 'line',
-            smooth: true,
-            symbol: 'circle',
-            symbolSize: 4,
-            showSymbol: true,
-            lineStyle: { width: 2, color: colors[idx] || undefined },
-            itemStyle: { color: colors[idx] || undefined },
-            areaStyle: { opacity: 0.08 },
-            emphasis: { focus: 'series' },
-            data: item.data || [],
-          };
-        }) || [],
+      series: allSeries,
     };
-  }, [currentTrend]);
+  }, [predictTrend]);
 
   /**
    * 全国算力节点分布地图配置
@@ -891,29 +982,69 @@ const TaskManagement: React.FC = () => {
               title={
                 <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span>多维资源动态管理</span>
-                  <DatePicker
-                    value={activeDate ? dayjs(activeDate, 'YYYY-MM-DD') : null}
-                    onChange={(_date, dateString) => {
-                      const d = typeof dateString === 'string' ? dateString : dateString[0];
-                      setSelectedDate(d || null);
-                    }}
-                    disabledDate={(current) => {
-                      if (!current) return true;
-                      return !availableDates.includes(current.format('YYYY-MM-DD'));
-                    }}
-                    allowClear={false}
-                    size="small"
-                    style={{ width: 160 }}
-                    placeholder="选择日期"
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {predictActiveDate && (
+                      <Tag color="blue" style={{ fontSize: 12 }}>
+                        当前查看：{predictActiveDate}
+                      </Tag>
+                    )}
+                    <DatePicker
+                      value={predictActiveDate ? dayjs(predictActiveDate, 'YYYY-MM-DD') : null}
+                      onChange={(_date, dateString) => {
+                        const d = typeof dateString === 'string' ? dateString : dateString[0];
+                        if (d) {
+                          setPredictSelectedDate(d);
+                          fetchPredictTrend(d);
+                        }
+                      }}
+                      disabledDate={(current) => {
+                        if (!current) return true;
+                        return !predictDates.includes(current.format('YYYY-MM-DD'));
+                      }}
+                      allowClear={false}
+                      size="small"
+                      style={{ width: 160 }}
+                      placeholder="选择日期查询"
+                    />
+                  </div>
                 </span>
               }
               variant="borderless"
             >
-              <ReactECharts
-                option={trendOption}
-                style={{ height: 400 }}
-              />
+              <Spin spinning={predictLoading} tip="加载预测数据中...">
+                <ReactECharts
+                  option={predictTrendOption}
+                  style={{ height: 420 }}
+                  notMerge={true}
+                />
+              </Spin>
+              <div style={{ marginTop: 8, display: 'flex', justifyContent: 'center', gap: 24, fontSize: 12, color: '#999' }}>
+                <span>
+                  <span style={{ display: 'inline-block', width: 24, height: 2, backgroundColor: '#5470c6', verticalAlign: 'middle', marginRight: 4 }} />
+                  CPU 利用率
+                </span>
+                <span>
+                  <span style={{ display: 'inline-block', width: 24, height: 2, backgroundColor: '#91cc75', verticalAlign: 'middle', marginRight: 4 }} />
+                  内存利用率
+                </span>
+                <span>
+                  <span style={{ display: 'inline-block', width: 24, height: 2, backgroundColor: '#fac858', verticalAlign: 'middle', marginRight: 4 }} />
+                  GPU 利用率
+                </span>
+                <span>
+                  <span style={{ display: 'inline-block', width: 24, height: 2, backgroundColor: '#999', verticalAlign: 'middle', marginRight: 4 }} />
+                  实线 = 已发生
+                </span>
+                <span>
+                  <span style={{ display: 'inline-block', width: 24, height: 2, borderTop: '2px dashed #999', verticalAlign: 'middle', marginRight: 4 }} />
+                  虚线 = 预测
+                </span>
+                <span>
+                  <span style={{ display: 'inline-block', width: 2, height: 12, backgroundColor: '#ff4d4f', verticalAlign: 'middle', marginRight: 4 }} />
+                  当前时间
+                </span>
+                <span>每10秒刷新</span>
+              </div>
             </Card>
           </Col>
         </Row>

@@ -1,10 +1,12 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   getTaskDemands,
   getMapData,
   getNodes,
   getResourceUsage,
   getResourceTrend,
+  getPredictDates,
+  getPredictTrend,
 } from '@/services/api';
 import {
   DemandItem,
@@ -221,10 +223,69 @@ export default function useTaskManagementData() {
     return result;
   }, [nodes]);
 
+  const [predictDates, setPredictDates] = useState<string[]>([]);
+  const [predictTrend, setPredictTrend] = useState<{
+    date: string;
+    x: string[];
+    currentTimeIndex: number;
+    series: { name: string; data: number[] }[];
+  } | null>(null);
+  const [predictLoading, setPredictLoading] = useState(false);
+  const predictTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const predictDateRef = useRef<string | null>(null);
+
+  const fetchPredictDates = useCallback(async () => {
+    try {
+      const res = await getPredictDates();
+      const dates = (res as any)?.dates || [];
+      setPredictDates(dates);
+      return dates;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const fetchPredictTrend = useCallback(async (date: string) => {
+    setPredictLoading(true);
+    predictDateRef.current = date;
+    try {
+      const res = await getPredictTrend(date);
+      setPredictTrend(res as any);
+    } catch {
+      setPredictTrend(null);
+    } finally {
+      setPredictLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const ctrl = new AbortController();
     fetchData(ctrl.signal);
-    return () => ctrl.abort();
+
+    // 初始加载：获取日期列表，默认查看今天
+    fetchPredictDates().then((dates) => {
+      const today = new Date().toISOString().slice(0, 10);
+      // 优先用今天，如果今天不在列表中则用最近的日期
+      const targetDate = dates.includes(today) ? today : (dates.length > 0 ? dates[dates.length - 1] : today);
+      fetchPredictTrend(targetDate);
+    });
+
+    // 每10秒轮询一次，实现实时预测效果
+    predictTimerRef.current = setInterval(() => {
+      const currentDate = predictDateRef.current;
+      if (currentDate) {
+        getPredictTrend(currentDate).then((res) => {
+          setPredictTrend(res as any);
+        }).catch(() => {});
+      }
+    }, 10000);
+
+    return () => {
+      ctrl.abort();
+      if (predictTimerRef.current) {
+        clearInterval(predictTimerRef.current);
+      }
+    };
   }, []);
 
   return {
@@ -239,5 +300,9 @@ export default function useTaskManagementData() {
     nodeStatusGroups,
     alerts,
     refresh: fetchData,
+    predictDates,
+    predictTrend,
+    predictLoading,
+    fetchPredictTrend,
   };
 }

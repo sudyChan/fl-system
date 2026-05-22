@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # Server
     HOST: str = "0.0.0.0"
-    PORT: int = 10821
+    PORT: int = 10825
 
     # Database
     DATABASE_URL: str = "postgresql://cn_admin:slwl@10.129.209.249:5433/computing_network?sslmode=prefer"

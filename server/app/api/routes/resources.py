@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import text, create_engine
@@ -8,6 +8,11 @@ import time
 from app.core.database import get_db
 from app.core.config import settings
 from app.core.cache import cached
+from app.services.alibaba_predictor import (
+    get_available_dates,
+    get_realtime_prediction,
+    get_daily_overview,
+)
 
 router = APIRouter()
 
@@ -399,3 +404,39 @@ async def get_map_nodes():
     except Exception as e:
         print(f"[API] /resources/map query failed: {e}")
         return []
+
+
+@router.get("/resources/predict/dates")
+async def predict_available_dates():
+    try:
+        dates = get_available_dates()
+        return {"dates": dates}
+    except Exception as e:
+        print(f"[API] /resources/predict/dates failed: {e}")
+        return {"dates": []}
+
+
+@router.get("/resources/predict/trend")
+async def predict_trend(date: str = Query(..., description="查询日期，格式 YYYY-MM-DD")):
+    try:
+        result = await get_realtime_prediction(date)
+        if result:
+            return result
+        return {
+            "date": date,
+            "x": [],
+            "currentTimeIndex": -1,
+            "series": [],
+        }
+    except Exception as e:
+        print(f"[API] /resources/predict/trend failed: {e}")
+        return {"date": date, "x": [], "currentTimeIndex": -1, "series": []}
+
+
+@router.get("/resources/predict/overview")
+async def predict_overview():
+    try:
+        return get_daily_overview()
+    except Exception as e:
+        print(f"[API] /resources/predict/overview failed: {e}")
+        return {"x": [], "series": []}

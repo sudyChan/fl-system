@@ -84,6 +84,12 @@ export const getResourceTrend = () => api.get('/resources/trend');
  * 数据源：PostgreSQL dim_supercomputing_center → Redis 缓存
  */
 export const getMapData = () => api.get('/resources/map');
+
+export const getPredictDates = () => api.get('/resources/predict/dates');
+
+export const getPredictTrend = (date: string) => api.get('/resources/predict/trend', { params: { date } });
+
+export const getPredictOverview = () => api.get('/resources/predict/overview');
 // export const createTask = (data: any) => api.post('/tasks', data);
 //
 
