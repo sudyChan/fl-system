@@ -40,7 +40,7 @@ const menuItems = [
     label: '算力网络智能调度',
     children: [
       { key: '/computing/resource-sensing', icon: <NodeIndexOutlined />, label: '多维资源协同感知' },
-      { key: '/computing/task-management', icon: <AlertOutlined />, label: '算力任务需求管理' },
+      { key: '/computing/task-management', icon: <AlertOutlined />, label: '算力任务运营调度' },
       { key: '/computing/prediction-allocation', icon: <FundProjectionScreenOutlined />, label: '协同预测与分配' },
       { key: '/computing/resource-monitoring', icon: <MonitorOutlined />, label: '算力资源实时监控' },
       { key: '/computing/security-assessment', icon: <SecurityScanOutlined />, label: '量化安全性评估' },

@@ -25,6 +25,7 @@ import {
   NODE_STATUS_META,
   ResourceAlert,
   ALERT_THRESHOLDS,
+  SUPERCOMPUTING_MAP,
 } from './types';
 
 export interface DailyTrendData {
@@ -74,15 +75,36 @@ export default function useTaskManagementData() {
 
       const nodesAny = nodesRes as any;
       const nodesData: NodeItem[] = Array.isArray(nodesAny?.nodes)
-        ? nodesAny.nodes.map((n: any) => ({
-            node_name: n.node_name || n.hostname || '',
-            node_id: n.node_id || '',
-            status: n.status || 'offline',
-            cpu_percent: n.cpu_percent ?? n.cpu_usage ?? 0,
-            mem_percent: n.mem_percent ?? n.memory_usage ?? 0,
-            gpu_percent: n.gpu_percent ?? n.gpu_usage ?? 0,
-            disk_percent: n.disk_percent ?? n.disk_usage ?? 0,
-          }))
+        ? nodesAny.nodes.map((n: any) => {
+            const nodeName: string = n.node_name || n.hostname || '';
+            let parentSuper = '';
+            const nameLower = nodeName.toLowerCase();
+            for (const [city, sc] of Object.entries(SUPERCOMPUTING_MAP)) {
+              if (nameLower.includes(city)) {
+                parentSuper = sc;
+                break;
+              }
+            }
+            if (!parentSuper) {
+              const nodeIdLower = (n.node_id || '').toLowerCase();
+              for (const [city, sc] of Object.entries(SUPERCOMPUTING_MAP)) {
+                if (nodeIdLower.includes(city)) {
+                  parentSuper = sc;
+                  break;
+                }
+              }
+            }
+            return {
+              node_name: nodeName,
+              node_id: n.node_id || '',
+              status: n.status || 'offline',
+              cpu_percent: n.cpu_percent ?? n.cpu_usage ?? 0,
+              mem_percent: n.mem_percent ?? n.memory_usage ?? 0,
+              gpu_percent: n.gpu_percent ?? n.gpu_usage ?? 0,
+              disk_percent: n.disk_percent ?? n.disk_usage ?? 0,
+              parent_supercomputing: parentSuper,
+            };
+          })
         : [];
 
       const usageData: ResourceUsageItem[] = Array.isArray(usageRes)
@@ -150,16 +172,17 @@ export default function useTaskManagementData() {
   const stats = useMemo<StatItem[]>(() => {
     const total = demands.length;
     const running = demands.filter((d) => d.status === '运行中').length;
-    const idleNodes = nodes.filter((n) => n.status === 'online' && n.cpu_percent < 10 && n.gpu_percent < 10).length;
     const onlineNodes = nodes.filter((n) => n.status === 'online');
+    const healthyNodes = onlineNodes.length;
+    const alertNodes = nodes.filter((n) => n.status === 'warning' || n.status === 'offline').length;
     const avgUsage = onlineNodes.length
       ? +(onlineNodes.reduce((s, n) => s + n.cpu_percent, 0) / onlineNodes.length).toFixed(1)
       : 0;
     return [
-      { title: '任务总数', value: total },
-      { title: '运行中任务', value: running },
-      { title: '空闲节点', value: idleNodes },
-      { title: '资源利用率', value: `${avgUsage}%` },
+      { title: '全网任务总数', value: total },
+      { title: '运行中', value: running },
+      { title: '全网空闲算力', value: `${healthyNodes} 节点` },
+      { title: '全网资源利用率', value: `${avgUsage}%` },
     ];
   }, [demands, nodes]);
 
